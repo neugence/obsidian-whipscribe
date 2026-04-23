@@ -1,0 +1,11 @@
+.whipscribe-statusbar {
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.whipscribe-statusbar.is-recording {
+  color: var(--text-error, #e03131);
+  font-weight: 600;
+}
