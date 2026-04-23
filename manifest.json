@@ -3,7 +3,7 @@
   "name": "WhipScribe",
   "version": "0.1.0",
   "minAppVersion": "1.0.0",
-  "description": "Transcribe audio and video files via WhipScribe without leaving Obsidian.",
+  "description": "Transcribe audio and video in Obsidian — via WhipScribe cloud or local whisper.cpp.",
   "author": "Neugence",
   "authorUrl": "https://whipscribe.com",
   "isDesktopOnly": true

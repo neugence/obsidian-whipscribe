@@ -5,17 +5,20 @@ import {
   WhipScribeSettingTab,
 } from "./settings";
 import { AudioRecorder } from "./recorder";
-import { WhipScribeApi } from "./api";
+import { WhipScribeApi, TranscriptResult } from "./api";
+import { LocalWhisperRunner, LocalWhisperError } from "./local_whisper";
 import { formatTranscript, insertTranscript } from "./inserter";
 import { StatusBar, progressNotice } from "./ui";
 
-const SUPPORTED_EXT = ["mp3", "m4a", "wav", "mp4", "webm", "m4v"];
+const SUPPORTED_EXT = ["mp3", "m4a", "wav", "mp4", "webm", "m4v", "ogg", "flac"];
 const MAX_FILE_BYTES = 500 * 1024 * 1024;
 
 const EXT_MIME: Record<string, string> = {
   mp3: "audio/mpeg",
   m4a: "audio/mp4",
   wav: "audio/wav",
+  ogg: "audio/ogg",
+  flac: "audio/flac",
   mp4: "video/mp4",
   webm: "video/webm",
   m4v: "video/mp4",
@@ -95,27 +98,18 @@ export default class WhipScribePlugin extends Plugin {
     }
     try {
       await this.recorder.start();
-      this.statusBar.set(
-        "🔴 Recording — press Cmd/Ctrl+Shift+W to stop",
-        true
-      );
+      this.statusBar.set("🔴 Recording — press Cmd/Ctrl+Shift+W to stop", true);
     } catch (err) {
       new Notice(`WhipScribe: cannot record — ${humanErr(err)}`);
     }
   }
 
   private async saveRecordingBlob(blob: Blob): Promise<TFile> {
-    const folder = (this.settings.audioFolder || "Audio").replace(
-      /^\/+|\/+$/g,
-      ""
-    );
+    const folder = (this.settings.audioFolder || "Audio").replace(/^\/+|\/+$/g, "");
     if (!(await this.app.vault.adapter.exists(folder))) {
       await this.app.vault.createFolder(folder);
     }
-    const ts = new Date()
-      .toISOString()
-      .replace(/[:.]/g, "-")
-      .slice(0, 19);
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const ext = blob.type.includes("mp4") ? "mp4" : "webm";
     const path = `${folder}/whipscribe-${ts}.${ext}`;
     const buf = await blob.arrayBuffer();
@@ -128,36 +122,15 @@ export default class WhipScribePlugin extends Plugin {
       return;
     }
 
-    const api = new WhipScribeApi(this.settings.apiKey);
-    const progress = progressNotice(`WhipScribe: uploading ${file.name}...`);
-
+    const progress = progressNotice(
+      `WhipScribe (${this.settings.backend}): loading ${file.name}...`
+    );
     try {
       const buf = await this.app.vault.readBinary(file);
-      const mime =
-        EXT_MIME[file.extension.toLowerCase()] || "application/octet-stream";
-      const blob = new Blob([buf], { type: mime });
-
-      const submit = await this.withRetry(() => api.upload(file.name, blob));
-      progress.update("WhipScribe: queued — transcribing...");
-
-      const terminal = await api.waitForDone(
-        submit.jobId,
-        (status, pct) => {
-          progress.update(
-            `WhipScribe: ${status}${pct != null ? ` ${pct}%` : ""}`
-          );
-        }
-      );
-      if (terminal.status !== "done") {
-        progress.done();
-        new Notice(
-          `WhipScribe: job ${terminal.status}${
-            terminal.error ? ` — ${terminal.error}` : ""
-          }`
-        );
-        return;
-      }
-      const result = await this.withRetry(() => api.getResult(submit.jobId));
+      const result =
+        this.settings.backend === "local"
+          ? await this.runLocal(buf, file.name, progress.update)
+          : await this.runCloud(buf, file.name, progress.update);
       progress.done();
 
       const body = formatTranscript(result, {
@@ -172,8 +145,52 @@ export default class WhipScribePlugin extends Plugin {
       new Notice(`WhipScribe: done — ${result.wordCount} words`);
     } catch (err) {
       progress.done();
+      if (err instanceof LocalWhisperError && err.stderr) {
+        console.error("[WhipScribe] whisper.cpp stderr:", err.stderr);
+      }
       new Notice(`WhipScribe: ${humanErr(err)}`);
     }
+  }
+
+  private async runCloud(
+    buf: ArrayBuffer,
+    filename: string,
+    update: (s: string) => void
+  ): Promise<TranscriptResult> {
+    const api = new WhipScribeApi(this.settings.apiKey);
+    const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+    const mime = EXT_MIME[ext] || "application/octet-stream";
+    const blob = new Blob([buf], { type: mime });
+    update(`WhipScribe: uploading ${filename}...`);
+    const submit = await this.withRetry(() => api.upload(filename, blob));
+    update("WhipScribe: queued — transcribing...");
+    const terminal = await api.waitForDone(submit.jobId, (status, pct) => {
+      update(`WhipScribe: ${status}${pct != null ? ` ${pct}%` : ""}`);
+    });
+    if (terminal.status !== "done") {
+      throw new Error(
+        `job ${terminal.status}${terminal.error ? ` — ${terminal.error}` : ""}`
+      );
+    }
+    return await this.withRetry(() => api.getResult(submit.jobId));
+  }
+
+  private async runLocal(
+    buf: ArrayBuffer,
+    filename: string,
+    update: (s: string) => void
+  ): Promise<TranscriptResult> {
+    const runner = new LocalWhisperRunner({
+      binaryPath: this.settings.localBinaryPath,
+      modelPath: this.settings.localModelPath,
+      language: this.settings.localLanguage,
+      threads: this.settings.localThreads,
+      extraArgs: this.settings.localExtraArgs,
+    });
+    update(`whisper.cpp: decoding ${filename}...`);
+    return await runner.transcribe(buf, (stage) => {
+      update(`whisper.cpp: ${stage}...`);
+    });
   }
 
   private async withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
