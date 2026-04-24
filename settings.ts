@@ -69,10 +69,10 @@ export class WhipScribeSettingTab extends PluginSettingTab {
     new Setting(root).setName("Cloud").setHeading();
     new Setting(root)
       .setName("API key")
-      .setDesc("Optional. Anonymous use is supported; a key raises rate limits.")
+      .setDesc("Optional. Anonymous use is supported; a key raises rate limits. Keys start with `ws_`.")
       .addText((t) =>
         t
-          .setPlaceholder("ws_...") // eslint-disable-line obsidianmd/ui/sentence-case
+          .setPlaceholder("Paste API key")
           .setValue(this.plugin.settings.apiKey)
           .onChange(async (v) => {
             this.plugin.settings.apiKey = v.trim();
@@ -91,10 +91,10 @@ export class WhipScribeSettingTab extends PluginSettingTab {
 
     new Setting(root)
       .setName("Binary path")
-      .setDesc("Path to the whisper.cpp executable.")
+      .setDesc("Absolute path to the whisper.cpp executable (e.g. `/opt/homebrew/bin/whisper-cli`).")
       .addText((t) =>
         t
-          .setPlaceholder("/opt/homebrew/bin/whisper-cli") // eslint-disable-line obsidianmd/ui/sentence-case
+          .setPlaceholder("Absolute path")
           .setValue(this.plugin.settings.localBinaryPath)
           .onChange(async (v) => {
             this.plugin.settings.localBinaryPath = v.trim();
@@ -130,10 +130,10 @@ export class WhipScribeSettingTab extends PluginSettingTab {
 
     new Setting(root)
       .setName("Language")
-      .setDesc("ISO code (en, es, fr, ...) or `auto` to detect.")
+      .setDesc("Language code (en, es, fr, ...) or leave blank for auto-detect.")
       .addText((t) =>
         t
-          .setPlaceholder("auto") // eslint-disable-line obsidianmd/ui/sentence-case
+          .setPlaceholder("Language code or blank for auto")
           .setValue(this.plugin.settings.localLanguage)
           .onChange(async (v) => {
             this.plugin.settings.localLanguage = v.trim() || "auto";
