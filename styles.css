@@ -9,3 +9,8 @@
   color: var(--text-error, #e03131);
   font-weight: 600;
 }
+
+.whipscribe-hint {
+  opacity: 0.75;
+  font-size: var(--font-ui-small);
+}

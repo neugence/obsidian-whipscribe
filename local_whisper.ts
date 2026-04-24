@@ -24,7 +24,9 @@ export async function detectWhisperBinary(): Promise<string | null> {
     try {
       await fs.access(p, fs.constants.X_OK);
       return p;
-    } catch {}
+    } catch {
+      // not accessible — try next candidate
+    }
   }
   return null;
 }
@@ -33,6 +35,16 @@ export class LocalWhisperError extends Error {
   constructor(message: string, public stderr?: string) {
     super(message);
   }
+}
+
+interface WhisperJsonEntry {
+  offsets?: { from?: number; to?: number };
+  text?: string;
+  speaker_turn_next?: boolean;
+}
+
+interface WhisperJson {
+  transcription?: WhisperJsonEntry[];
 }
 
 export class LocalWhisperRunner {
@@ -101,7 +113,9 @@ export class LocalWhisperRunner {
       const raw = await fs.readFile(jsonPath, "utf8");
       return parseWhisperJson(raw);
     } finally {
-      fs.rm(tmpBase, { recursive: true, force: true }).catch(() => {});
+      fs.rm(tmpBase, { recursive: true, force: true }).catch(() => {
+        // best effort cleanup
+      });
     }
   }
 }
@@ -130,13 +144,15 @@ function runProcess(bin: string, args: string[]): Promise<void> {
 }
 
 function parseWhisperJson(raw: string): TranscriptResult {
-  const obj = JSON.parse(raw);
-  const entries: any[] = Array.isArray(obj.transcription) ? obj.transcription : [];
+  const obj = JSON.parse(raw) as WhisperJson;
+  const entries: WhisperJsonEntry[] = Array.isArray(obj.transcription)
+    ? obj.transcription
+    : [];
   const segments: TranscriptSegment[] = entries.map((e) => ({
-    start: msFromOffset(e?.offsets?.from),
-    end: msFromOffset(e?.offsets?.to),
-    text: ((e?.text ?? "") as string).trim(),
-    speaker: e?.speaker_turn_next ? "Speaker ?" : undefined,
+    start: msFromOffset(e.offsets?.from),
+    end: msFromOffset(e.offsets?.to),
+    text: (e.text ?? "").trim(),
+    speaker: e.speaker_turn_next ? "Speaker ?" : undefined,
   }));
   const text = segments.map((s) => s.text).join(" ").trim();
   const duration =
@@ -158,12 +174,14 @@ function tokenize(s: string): string[] {
 }
 
 async function decodeToWav16kMono(buf: ArrayBuffer): Promise<Uint8Array> {
-  const decodeCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const decodeCtx = new AudioContext();
   let decoded: AudioBuffer;
   try {
     decoded = await decodeCtx.decodeAudioData(buf.slice(0));
   } finally {
-    decodeCtx.close().catch(() => {});
+    decodeCtx.close().catch(() => {
+      // best effort
+    });
   }
   const targetRate = 16000;
   const frames = Math.max(1, Math.ceil(decoded.duration * targetRate));

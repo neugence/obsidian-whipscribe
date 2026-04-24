@@ -1,7 +1,7 @@
 {
   "id": "whipscribe",
   "name": "WhipScribe",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minAppVersion": "1.0.0",
   "description": "Transcribe audio and video via WhipScribe cloud or local whisper.cpp.",
   "author": "Neugence",

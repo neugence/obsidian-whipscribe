@@ -37,19 +37,20 @@ export default class WhipScribePlugin extends Plugin {
 
     this.addCommand({
       id: "toggle-recording",
-      name: "Start/Stop recording",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "w" }],
-      callback: () => void this.toggleRecording(),
+      name: "Start or stop recording",
+      callback: () => {
+        void this.toggleRecording();
+      },
     });
 
     this.addCommand({
       id: "transcribe-active-file",
-      name: "Transcribe the active audio/video file",
+      name: "Transcribe the active audio or video file",
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
-        const ok = !!file && SUPPORTED_EXT.includes(file.extension);
-        if (ok && !checking) void this.transcribeVaultFile(file!);
-        return ok;
+        if (!file || !SUPPORTED_EXT.includes(file.extension)) return false;
+        if (!checking) void this.transcribeVaultFile(file);
+        return true;
       },
     });
 
@@ -59,9 +60,11 @@ export default class WhipScribePlugin extends Plugin {
         if (!SUPPORTED_EXT.includes(file.extension)) return;
         menu.addItem((item) => {
           item
-            .setTitle("Transcribe with WhipScribe")
+            .setTitle("Transcribe audio or video")
             .setIcon("mic")
-            .onClick(() => void this.transcribeVaultFile(file));
+            .onClick(() => {
+              void this.transcribeVaultFile(file);
+            });
         });
       })
     );
@@ -69,13 +72,16 @@ export default class WhipScribePlugin extends Plugin {
 
   onunload(): void {
     if (this.recorder.isRecording()) {
-      this.recorder.stop().catch(() => {});
+      this.recorder.stop().catch(() => {
+        // ignore — best effort during unload
+      });
     }
     this.statusBar?.clear();
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = (await this.loadData()) as Partial<WhipScribeSettings> | null;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
   }
 
   async saveSettings(): Promise<void> {
@@ -92,15 +98,15 @@ export default class WhipScribePlugin extends Plugin {
         await this.transcribeVaultFile(file);
       } catch (err) {
         this.statusBar.clear();
-        new Notice(`WhipScribe: recording failed — ${humanErr(err)}`);
+        new Notice(`Recording failed — ${humanErr(err)}`);
       }
       return;
     }
     try {
       await this.recorder.start();
-      this.statusBar.set("🔴 Recording — press Cmd/Ctrl+Shift+W to stop", true);
+      this.statusBar.set("🔴 Recording — run the command again to stop", true);
     } catch (err) {
-      new Notice(`WhipScribe: cannot record — ${humanErr(err)}`);
+      new Notice(`Cannot record — ${humanErr(err)}`);
     }
   }
 
@@ -118,19 +124,17 @@ export default class WhipScribePlugin extends Plugin {
 
   private async transcribeVaultFile(file: TFile): Promise<void> {
     if (file.stat.size > MAX_FILE_BYTES) {
-      new Notice(`WhipScribe: ${file.name} is larger than 500 MB.`);
+      new Notice(`${file.name} is larger than 500 MB.`);
       return;
     }
 
-    const progress = progressNotice(
-      `WhipScribe (${this.settings.backend}): loading ${file.name}...`
-    );
+    const progress = progressNotice(`Loading ${file.name}...`);
     try {
       const buf = await this.app.vault.readBinary(file);
       const result =
         this.settings.backend === "local"
-          ? await this.runLocal(buf, file.name, progress.update)
-          : await this.runCloud(buf, file.name, progress.update);
+          ? await this.runLocal(buf, file.name, (s) => progress.update(s))
+          : await this.runCloud(buf, file.name, (s) => progress.update(s));
       progress.done();
 
       const body = formatTranscript(result, {
@@ -142,13 +146,13 @@ export default class WhipScribePlugin extends Plugin {
         createNewNote: !this.settings.autoInsert,
         sourceName: file.name,
       });
-      new Notice(`WhipScribe: done — ${result.wordCount} words`);
+      new Notice(`Transcription done — ${result.wordCount} words`);
     } catch (err) {
       progress.done();
       if (err instanceof LocalWhisperError && err.stderr) {
         console.error("[WhipScribe] whisper.cpp stderr:", err.stderr);
       }
-      new Notice(`WhipScribe: ${humanErr(err)}`);
+      new Notice(`Transcription failed — ${humanErr(err)}`);
     }
   }
 
@@ -161,11 +165,11 @@ export default class WhipScribePlugin extends Plugin {
     const ext = filename.split(".").pop()?.toLowerCase() ?? "";
     const mime = EXT_MIME[ext] || "application/octet-stream";
     const blob = new Blob([buf], { type: mime });
-    update(`WhipScribe: uploading ${filename}...`);
+    update(`Uploading ${filename}...`);
     const submit = await this.withRetry(() => api.upload(filename, blob));
-    update("WhipScribe: queued — transcribing...");
+    update("Queued — transcribing...");
     const terminal = await api.waitForDone(submit.jobId, (status, pct) => {
-      update(`WhipScribe: ${status}${pct != null ? ` ${pct}%` : ""}`);
+      update(`${status}${pct != null ? ` ${pct}%` : ""}`);
     });
     if (terminal.status !== "done") {
       throw new Error(
@@ -187,9 +191,9 @@ export default class WhipScribePlugin extends Plugin {
       threads: this.settings.localThreads,
       extraArgs: this.settings.localExtraArgs,
     });
-    update(`whisper.cpp: decoding ${filename}...`);
+    update(`Decoding ${filename}...`);
     return await runner.transcribe(buf, (stage) => {
-      update(`whisper.cpp: ${stage}...`);
+      update(`${stage}...`);
     });
   }
 
@@ -201,7 +205,7 @@ export default class WhipScribePlugin extends Plugin {
       } catch (err) {
         last = err;
         if (!isTransient(err) || i === attempts - 1) throw err;
-        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, i)));
+        await new Promise((r) => activeWindow.setTimeout(r, 500 * Math.pow(2, i)));
       }
     }
     throw last;

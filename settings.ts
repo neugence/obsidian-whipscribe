@@ -41,14 +41,13 @@ export class WhipScribeSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "WhipScribe" });
 
     new Setting(containerEl)
       .setName("Transcription backend")
-      .setDesc("Cloud sends audio to whipscribe.com; local runs whisper.cpp on this machine.")
+      .setDesc("Cloud sends audio to whipscribe.com. Local runs whisper.cpp on this machine.")
       .addDropdown((d) =>
         d
-          .addOptions({ cloud: "WhipScribe (cloud)", local: "whisper.cpp (local)" })
+          .addOptions({ cloud: "Cloud", local: "Local (whisper.cpp)" })
           .setValue(this.plugin.settings.backend)
           .onChange(async (v) => {
             this.plugin.settings.backend = v as Backend;
@@ -63,18 +62,17 @@ export class WhipScribeSettingTab extends PluginSettingTab {
       this.renderLocal(containerEl);
     }
 
-    containerEl.createEl("h3", { text: "Output" });
     this.renderOutput(containerEl);
   }
 
   private renderCloud(root: HTMLElement): void {
-    root.createEl("h3", { text: "WhipScribe cloud" });
+    new Setting(root).setName("Cloud").setHeading();
     new Setting(root)
       .setName("API key")
-      .setDesc("Optional. WhipScribe allows anonymous use; a key raises rate limits.")
+      .setDesc("Optional. Anonymous use is supported; a key raises rate limits.")
       .addText((t) =>
         t
-          .setPlaceholder("ws_...")
+          .setPlaceholder("ws_...") // eslint-disable-line obsidianmd/ui/sentence-case
           .setValue(this.plugin.settings.apiKey)
           .onChange(async (v) => {
             this.plugin.settings.apiKey = v.trim();
@@ -84,20 +82,19 @@ export class WhipScribeSettingTab extends PluginSettingTab {
   }
 
   private renderLocal(root: HTMLElement): void {
-    root.createEl("h3", { text: "whisper.cpp (local)" });
+    new Setting(root).setName("Local (whisper.cpp)").setHeading();
     const hint = root.createEl("p", {
       text:
         "Install whisper.cpp (macOS: `brew install whisper-cpp`) and download a ggml-*.bin model from huggingface.co/ggerganov/whisper.cpp.",
     });
-    hint.style.opacity = "0.75";
-    hint.style.fontSize = "var(--font-ui-small)";
+    hint.addClass("whipscribe-hint");
 
     new Setting(root)
       .setName("Binary path")
-      .setDesc("Path to the whisper-cli (or whisper-cpp) executable.")
+      .setDesc("Path to the whisper.cpp executable.")
       .addText((t) =>
         t
-          .setPlaceholder("/opt/homebrew/bin/whisper-cli")
+          .setPlaceholder("/opt/homebrew/bin/whisper-cli") // eslint-disable-line obsidianmd/ui/sentence-case
           .setValue(this.plugin.settings.localBinaryPath)
           .onChange(async (v) => {
             this.plugin.settings.localBinaryPath = v.trim();
@@ -123,7 +120,7 @@ export class WhipScribeSettingTab extends PluginSettingTab {
       .setDesc("Absolute path to a ggml-*.bin model file.")
       .addText((t) =>
         t
-          .setPlaceholder("/Users/you/models/ggml-base.en.bin")
+          .setPlaceholder("~/models/ggml-base.en.bin")
           .setValue(this.plugin.settings.localModelPath)
           .onChange(async (v) => {
             this.plugin.settings.localModelPath = v.trim();
@@ -136,7 +133,7 @@ export class WhipScribeSettingTab extends PluginSettingTab {
       .setDesc("ISO code (en, es, fr, ...) or `auto` to detect.")
       .addText((t) =>
         t
-          .setPlaceholder("auto")
+          .setPlaceholder("auto") // eslint-disable-line obsidianmd/ui/sentence-case
           .setValue(this.plugin.settings.localLanguage)
           .onChange(async (v) => {
             this.plugin.settings.localLanguage = v.trim() || "auto";
@@ -173,6 +170,8 @@ export class WhipScribeSettingTab extends PluginSettingTab {
   }
 
   private renderOutput(root: HTMLElement): void {
+    new Setting(root).setName("Output").setHeading();
+
     new Setting(root)
       .setName("Default output format")
       .addDropdown((d) =>
@@ -204,7 +203,7 @@ export class WhipScribeSettingTab extends PluginSettingTab {
 
     new Setting(root)
       .setName("Insert at cursor")
-      .setDesc("Off = create a new note under Transcripts/ for each transcript.")
+      .setDesc("Off = create a new note under the transcripts folder for each transcript.")
       .addToggle((t) =>
         t.setValue(this.plugin.settings.autoInsert).onChange(async (v) => {
           this.plugin.settings.autoInsert = v;

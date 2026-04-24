@@ -5,7 +5,7 @@ Transcribe audio and video notes without leaving your vault — either via the [
 ## Features
 
 - **Two backends, one plugin.** Switch between WhipScribe cloud and local whisper.cpp from settings.
-- **Hotkey recording** (`Cmd/Ctrl+Shift+W`) — records from your mic, transcribes, and pastes at the cursor.
+- **Voice recording** — one command starts/stops the mic, transcribes, and pastes at the cursor. Bind your own hotkey under **Settings → Hotkeys → Start or stop recording**.
 - **Right-click to transcribe** any `.mp3`, `.m4a`, `.wav`, `.mp4`, `.webm`, `.m4v`, `.ogg`, or `.flac` file in the vault.
 - **Output formats:** plain text, bullet list, action-item checklist, timestamped chapters.
 - **Speaker diarization** when the backend returns speaker segments.
@@ -66,9 +66,9 @@ curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.
 
 ### Record and transcribe
 
-1. Put the cursor where you want the transcript.
-2. Press `Cmd+Shift+W` (macOS) or `Ctrl+Shift+W` (Windows/Linux). Status bar shows `🔴 Recording`.
-3. Press the same hotkey to stop. The recording is saved under `Audio/` and transcribed by the selected backend.
+1. Open **Settings → Hotkeys**, search for **Start or stop recording**, and assign a key (e.g. `Cmd+Shift+W`).
+2. Put the cursor where you want the transcript and press that hotkey. Status bar shows `🔴 Recording`.
+3. Press the hotkey again to stop. The recording is saved under `Audio/` and transcribed by the selected backend.
 
 ### Transcribe an existing file
 

@@ -1,4 +1,4 @@
-import { App, MarkdownView, Notice, TFile } from "obsidian";
+import { App, MarkdownView, Notice } from "obsidian";
 import type { TranscriptResult, TranscriptSegment } from "./api";
 import type { OutputFormat } from "./settings";
 
@@ -136,7 +136,7 @@ export async function insertTranscript(
       editor.replaceRange(body, editor.getCursor());
       return;
     }
-    new Notice("WhipScribe: no active note — creating a new one.");
+    new Notice("No active note — creating a new one.");
   }
   const safeName = opts.sourceName
     .replace(/\.[^.]+$/, "")
@@ -144,7 +144,7 @@ export async function insertTranscript(
   const stamp = new Date().toISOString().slice(0, 10);
   const path = await uniquePath(app, `Transcripts/${safeName}-${stamp}.md`);
   const file = await app.vault.create(path, body);
-  await app.workspace.getLeaf(true).openFile(file as TFile);
+  await app.workspace.getLeaf(true).openFile(file);
 }
 
 async function uniquePath(app: App, desired: string): Promise<string> {

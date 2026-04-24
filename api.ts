@@ -27,6 +27,36 @@ export interface TranscriptResult {
   segments?: TranscriptSegment[];
 }
 
+interface SubmitResponse {
+  job_id?: string;
+  id?: string;
+  claim_token?: string;
+}
+
+interface StatusResponse {
+  status: JobStatus["status"];
+  progress?: number;
+  error?: string;
+}
+
+interface ResultSegmentPayload {
+  start?: number;
+  end?: number;
+  text?: string;
+  speaker?: string;
+}
+
+interface ResultResponse {
+  text?: string;
+  duration?: number;
+  segments?: ResultSegmentPayload[];
+}
+
+interface ErrorResponse {
+  error?: string;
+  message?: string;
+}
+
 export class WhipScribeApi {
   private claimToken: string | null = null;
 
@@ -42,20 +72,20 @@ export class WhipScribeApi {
     };
     if (this.apiKey) headers["X-API-Key"] = this.apiKey;
 
-    const res = await httpJson({
+    const res = await httpJson<SubmitResponse>({
       url: `${BASE}/transcribe`,
       method: "POST",
       headers,
       body,
     });
-    const jobId = res.job_id || res.id;
+    const jobId = res.job_id ?? res.id;
     if (!jobId) throw new Error("server did not return a job id");
-    this.claimToken = res.claim_token || null;
-    return { jobId, claimToken: this.claimToken || undefined };
+    this.claimToken = res.claim_token ?? null;
+    return { jobId, claimToken: this.claimToken ?? undefined };
   }
 
   async status(jobId: string): Promise<JobStatus> {
-    const res = await httpJson({
+    const res = await httpJson<StatusResponse>({
       url: `${BASE}/jobs/${encodeURIComponent(jobId)}`,
       method: "GET",
       headers: this.authHeaders(),
@@ -92,17 +122,17 @@ export class WhipScribeApi {
   }
 
   async getResult(jobId: string): Promise<TranscriptResult> {
-    const res = await httpJson({
+    const res = await httpJson<ResultResponse>({
       url: `${BASE}/jobs/${encodeURIComponent(jobId)}/result?format=json`,
       method: "GET",
       headers: this.authHeaders(),
     });
-    const text: string = (res.text ?? "").toString();
+    const text = (res.text ?? "").toString();
     const segments: TranscriptSegment[] | undefined = Array.isArray(res.segments)
-      ? res.segments.map((s: any) => ({
+      ? res.segments.map((s: ResultSegmentPayload) => ({
           start: Number(s.start) || 0,
           end: Number(s.end) || 0,
-          text: (s.text ?? "").toString(),
+          text: (s.text ?? "").toString().trim(),
           speaker: s.speaker ? String(s.speaker) : undefined,
         }))
       : undefined;
@@ -122,12 +152,12 @@ export class WhipScribeApi {
   }
 }
 
-async function httpJson(params: {
+async function httpJson<T>(params: {
   url: string;
   method: string;
   headers: Record<string, string>;
   body?: ArrayBuffer | string;
-}): Promise<any> {
+}): Promise<T> {
   const res = await requestUrl({
     url: params.url,
     method: params.method,
@@ -137,14 +167,14 @@ async function httpJson(params: {
   });
   if (res.status >= 200 && res.status < 300) {
     try {
-      return res.json;
+      return res.json as T;
     } catch {
-      return {};
+      return {} as T;
     }
   }
   let message = `HTTP ${res.status}`;
   try {
-    const body = res.json;
+    const body = res.json as ErrorResponse;
     if (body?.error) message = body.error;
     else if (body?.message) message = body.message;
   } catch {
@@ -188,5 +218,5 @@ function cryptoRandom(): string {
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+  return new Promise((r) => activeWindow.setTimeout(r, ms));
 }
