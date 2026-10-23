@@ -12,6 +12,14 @@ Transcribe audio and video notes without leaving your vault — either via the [
 - **Insert at cursor** in the active note, or auto-create a dated note under `Transcripts/`.
 - Status-bar recording indicator, progress notices, retry-on-transient-failure.
 
+## Disclosures
+
+- **Network use.** With the cloud backend selected, the plugin uploads the chosen audio or video file to the WhipScribe API at `https://whipscribe.com/api/v1` and polls that address for the finished transcript. Nothing else is sent. With the local whisper.cpp backend selected, the plugin makes no network requests and audio never leaves your machine.
+- **Payment.** The cloud backend is a paid service. Every recording starts with a free preview of its opening minutes; a full transcript needs a WhipScribe pack (from $4 for 500 minutes, credits never expire). See [whipscribe.com/pricing](https://whipscribe.com/pricing). The local whisper.cpp backend is free.
+- **Account.** No account is needed to try the cloud backend. An optional WhipScribe API key, entered in the plugin's settings, ties requests to your account and its minutes. API keys come with the 5,000-minute pack ($24) or Workspace ($19 a month). The local backend needs no account.
+- **Files outside the vault.** The local backend runs the whisper.cpp binary and reads the model file from the paths you set, which are usually outside the vault. It writes a temporary WAV file and its JSON output to your system's temp folder and deletes them when the transcript is done.
+- **Telemetry.** The plugin itself collects no telemetry. Files sent to the cloud backend are handled under the [WhipScribe privacy policy](https://whipscribe.com/privacy): they are transcribed on WhipScribe's own servers and never used to train any model.
+
 ## Install
 
 1. Clone this folder into `<your-vault>/.obsidian/plugins/whipscribe/`.
